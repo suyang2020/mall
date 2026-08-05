@@ -1,0 +1,214 @@
+services:
+  # ==================== 基础设施 ====================
+  mysql:
+    image: mysql:8.0
+    container_name: mysql
+    command: mysqld --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci --default-authentication-plugin=mysql_native_password
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root}
+      MYSQL_DATABASE: mall
+    ports:
+      - "3307:3306"
+    volumes:
+      - ${DATA_DIR:-./data}/mysql/data:/var/lib/mysql
+      - ${DATA_DIR:-./data}/mysql/log:/var/log/mysql
+      - ./document/sql/mall.sql:/docker-entrypoint-initdb.d/01-mall.sql
+    networks:
+      mall-net:
+        aliases:
+          - db
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${MYSQL_ROOT_PASSWORD:-root}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7
+    container_name: redis
+    command: redis-server --appendonly yes
+    restart: always
+    volumes:
+      - ${DATA_DIR:-./data}/redis/data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - mall-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  rabbitmq:
+    image: rabbitmq:3.12-management
+    container_name: rabbitmq
+    restart: always
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-mall}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS:-mall}
+      RABBITMQ_DEFAULT_VHOST: /mall
+    volumes:
+      - ${DATA_DIR:-./data}/rabbitmq/data:/var/lib/rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    networks:
+      mall-net:
+        aliases:
+          - rabbit
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  elasticsearch:
+    image: elasticsearch:7.17.3
+    container_name: elasticsearch
+    restart: always
+    environment:
+      - "cluster.name=elasticsearch"
+      - "discovery.type=single-node"
+      - "ES_JAVA_OPTS=-Xms512m -Xmx1024m"
+    volumes:
+      - ${DATA_DIR:-./data}/elasticsearch/plugins:/usr/share/elasticsearch/plugins
+      - ${DATA_DIR:-./data}/elasticsearch/data:/usr/share/elasticsearch/data
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    networks:
+      mall-net:
+        aliases:
+          - es
+
+  kibana:
+    image: kibana:7.17.3
+    container_name: kibana
+    restart: always
+    depends_on:
+      - elasticsearch
+    environment:
+      - "ELASTICSEARCH_HOSTS=http://elasticsearch:9200"
+    ports:
+      - "5601:5601"
+    networks:
+      - mall-net
+
+  mongo:
+    image: mongo:4
+    container_name: mongo
+    restart: always
+    volumes:
+      - ${DATA_DIR:-./data}/mongo/db:/data/db
+    ports:
+      - "27017:27017"
+    networks:
+      - mall-net
+
+  minio:
+    image: minio/minio
+    container_name: minio
+    restart: always
+    command: server /data --console-address ":9001"
+    volumes:
+      - ${DATA_DIR:-./data}/minio/data:/data
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minioadmin}
+    ports:
+      - "9090:9000"
+      - "9001:9001"
+    networks:
+      - mall-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ==================== 应用服务 ====================
+  mall-admin:
+    build:
+      context: ./mall-admin
+      dockerfile: Dockerfile
+    image: mall/mall-admin:1.0-SNAPSHOT
+    container_name: mall-admin
+    restart: always
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    volumes:
+      - ${DATA_DIR:-./data}/app/mall-admin/logs:/var/logs
+    environment:
+      - TZ=Asia/Shanghai
+    networks:
+      - mall-net
+
+  mall-search:
+    build:
+      context: ./mall-search
+      dockerfile: Dockerfile
+    image: mall/mall-search:1.0-SNAPSHOT
+    container_name: mall-search
+    restart: always
+    depends_on:
+      mysql:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_started
+    ports:
+      - "8081:8081"
+    volumes:
+      - ${DATA_DIR:-./data}/app/mall-search/logs:/var/logs
+    environment:
+      - TZ=Asia/Shanghai
+    networks:
+      - mall-net
+
+  mall-portal:
+    build:
+      context: ./mall-portal
+      dockerfile: Dockerfile
+    image: mall/mall-portal:1.0-SNAPSHOT
+    container_name: mall-portal
+    restart: always
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mongo:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+    ports:
+      - "8085:8085"
+    volumes:
+      - ${DATA_DIR:-./data}/app/mall-portal/logs:/var/logs
+    environment:
+      - TZ=Asia/Shanghai
+    networks:
+      - mall-net
+
+  nginx:
+    image: nginx:1.25
+    container_name: nginx
+    restart: always
+    volumes:
+      - ${DATA_DIR:-./data}/nginx/html:/usr/share/nginx/html
+      - ${DATA_DIR:-./data}/nginx/logs:/var/log/nginx
+    ports:
+      - "80:80"
+    networks:
+      - mall-net
+
+networks:
+  mall-net:
+    name: mall-net
+    driver: bridge

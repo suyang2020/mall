@@ -1,0 +1,42 @@
+# 追加以下内容到 .gitignore
+cat >> .gitignore << 'EOF'
+
+# Database data files
+data/mysql/
+data/mongo/
+data/elasticsearch/
+data/redis/
+data/rabbitmq/
+
+# Application logs
+data/app/*/logs/
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp
+*.sock
+*.pid
+*.lock
+
+# Binary files
+*.jar
+*.war
+*.ear
+*.zip
+*.tar.gz
+*.7z
+
+# IDE
+.idea/
+*.iml
+.vscode/
+.classpath
+.project
+.settings/
+
+# OS
+Thumbs.db
+.DS_Store
+EOF
