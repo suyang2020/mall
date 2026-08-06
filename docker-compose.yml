@@ -175,7 +175,7 @@ services:
     build:
       context: ./mall-portal
       dockerfile: Dockerfile
-    image: mall/mall-portal:1.0-SNAPSHOT
+    image: mall/mall-portal:latest
     container_name: mall-portal
     restart: always
     depends_on:
@@ -193,6 +193,7 @@ services:
       - ${DATA_DIR:-./data}/app/mall-portal/logs:/var/logs
     environment:
       - TZ=Asia/Shanghai
+      - SPRING_PROFILES_ACTIVE=prod
     networks:
       - mall-net
 
