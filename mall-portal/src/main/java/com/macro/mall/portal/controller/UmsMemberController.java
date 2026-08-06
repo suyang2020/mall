@@ -2,12 +2,15 @@ package com.macro.mall.portal.controller;
 
 import com.macro.mall.common.api.CommonResult;
 import com.macro.mall.model.UmsMember;
+import com.macro.mall.portal.domain.LoginParam;
 import com.macro.mall.portal.service.UmsMemberService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -52,6 +55,20 @@ public class UmsMemberController {
         String token = memberService.login(username, password);
         if (token == null) {
             return CommonResult.validateFailed("用户名或密码错误");
+        }
+        Map<String, String> tokenMap = new HashMap<>();
+        tokenMap.put("token", token);
+        tokenMap.put("tokenHead", tokenHead);
+        return CommonResult.success(tokenMap);
+    }
+
+    @Operation(summary = "会员登录(JSON Body)")
+    @RequestMapping(value = "/login/v2", method = RequestMethod.POST)
+    @ResponseBody
+    public CommonResult loginV2(@Valid @RequestBody LoginParam loginParam) {
+        String token = memberService.login(loginParam);
+        if (token == null) {
+            return CommonResult.validateFailed("用户名或密码错误，请检查登录信息");
         }
         Map<String, String> tokenMap = new HashMap<>();
         tokenMap.put("token", token);

@@ -8,7 +8,9 @@ import com.macro.mall.model.UmsMember;
 import com.macro.mall.model.UmsMemberExample;
 import com.macro.mall.model.UmsMemberLevel;
 import com.macro.mall.model.UmsMemberLevelExample;
+import com.macro.mall.portal.domain.LoginParam;
 import com.macro.mall.portal.domain.MemberDetails;
+import com.macro.mall.portal.service.LoginLogService;
 import com.macro.mall.portal.service.UmsMemberCacheService;
 import com.macro.mall.portal.service.UmsMemberService;
 import com.macro.mall.security.util.JwtTokenUtil;
@@ -22,6 +24,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -31,6 +34,7 @@ import org.springframework.util.CollectionUtils;
 import java.util.Date;
 import java.util.List;
 import java.util.Random;
+import java.util.concurrent.TimeUnit;
 
 /**
  * 会员管理Service实现类
@@ -53,6 +57,14 @@ public class UmsMemberServiceImpl implements UmsMemberService {
     private String REDIS_KEY_PREFIX_AUTH_CODE;
     @Value("${redis.expire.authCode}")
     private Long AUTH_CODE_EXPIRE_SECONDS;
+    @Autowired
+    private LoginLogService loginLogService;
+    @Autowired
+    private StringRedisTemplate stringRedisTemplate;
+
+    private static final int MAX_LOGIN_ATTEMPTS = 5;
+    private static final int LOGIN_LOCK_MINUTES = 10;
+    private static final String LOGIN_ATTEMPT_KEY_PREFIX = "login:attempt:";
 
     @Override
     public UmsMember getByUsername(String username) {
@@ -163,6 +175,15 @@ public class UmsMemberServiceImpl implements UmsMemberService {
 
     @Override
     public String login(String username, String password) {
+        // 登录限流检查：5分钟内最多5次失败尝试
+        String attemptKey = LOGIN_ATTEMPT_KEY_PREFIX + username;
+        String attemptCount = stringRedisTemplate.opsForValue().get(attemptKey);
+        int attempts = attemptCount != null ? Integer.parseInt(attemptCount) : 0;
+        if (attempts >= MAX_LOGIN_ATTEMPTS) {
+            LOGGER.warn("用户{}登录次数过多，已被限制", username);
+            return null;
+        }
+
         String token = null;
         //密码需要客户端加密后传递
         try {
@@ -173,10 +194,26 @@ public class UmsMemberServiceImpl implements UmsMemberService {
             UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
             SecurityContextHolder.getContext().setAuthentication(authentication);
             token = jwtTokenUtil.generateToken(userDetails);
+            // 登录成功：清除限流计数 + 记录日志
+            stringRedisTemplate.delete(attemptKey);
+            UmsMember member = getByUsername(username);
+            loginLogService.logSuccess(member.getId(), username, "127.0.0.1", "PASSWORD");
         } catch (AuthenticationException e) {
             LOGGER.warn("登录异常:{}", e.getMessage());
+            // 登录失败：增加限流计数 + 记录日志
+            stringRedisTemplate.opsForValue().setIfAbsent(attemptKey, "0", LOGIN_LOCK_MINUTES, TimeUnit.MINUTES);
+            Long newCount = stringRedisTemplate.opsForValue().increment(attemptKey);
+            if (newCount != null) {
+                stringRedisTemplate.expire(attemptKey, LOGIN_LOCK_MINUTES, TimeUnit.MINUTES);
+            }
+            loginLogService.logFailure(username, "127.0.0.1", "PASSWORD", e.getMessage());
         }
         return token;
+    }
+
+    @Override
+    public String login(LoginParam loginParam) {
+        return login(loginParam.getUsername(), loginParam.getPassword());
     }
 
     @Override
