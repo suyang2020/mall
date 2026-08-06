@@ -26,11 +26,11 @@ pipeline {
                 sh '''
                     mvn clean package \
                         -DskipTests=false \
-                        -Dtest=\'!MallPortalApplicationTests,!PortalProductDaoTests\' \
+                        -Dtest="!MallPortalApplicationTests,!PortalProductDaoTests" \
                         -DfailIfNoTests=false \
+                        -Dsurefire.failIfNoSpecifiedTests=false \
                         -pl mall-portal,mall-admin \
-                        -am \
-                        -q
+                        -am
                 '''
             }
             post {
