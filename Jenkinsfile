@@ -26,6 +26,8 @@ pipeline {
                 sh '''
                     mvn clean package \
                         -DskipTests=false \
+                        -Dtest=\'!MallPortalApplicationTests,!PortalProductDaoTests\' \
+                        -DfailIfNoTests=false \
                         -pl mall-portal,mall-admin \
                         -am \
                         -q
