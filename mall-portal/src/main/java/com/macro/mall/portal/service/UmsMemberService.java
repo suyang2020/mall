@@ -1,6 +1,7 @@
 package com.macro.mall.portal.service;
 
 import com.macro.mall.model.UmsMember;
+import com.macro.mall.portal.domain.LoginParam;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -9,6 +10,12 @@ import org.springframework.transaction.annotation.Transactional;
  * Created by macro on 2018/8/3.
  */
 public interface UmsMemberService {
+
+    /**
+     * 使用LoginParam进行登录（记录日志 + 限流）
+     */
+    String login(LoginParam loginParam);
+
     /**
      * 根据用户名获取会员
      */
