@@ -13,7 +13,14 @@ pipeline {
         stage('Checkout') {
             steps {
                 checkout scm
-                echo "当前分支: ${env.BRANCH_NAME}"
+                script {
+                    // 普通 Pipeline 没有 BRANCH_NAME，从 git 获取
+                    env.GIT_BRANCH_NAME = sh(
+                        script: 'git rev-parse --abbrev-ref HEAD',
+                        returnStdout: true
+                    ).trim()
+                }
+                echo "当前分支: ${env.GIT_BRANCH_NAME}"
                 echo "提交ID: ${GIT_COMMIT.take(8)}"
             }
         }
@@ -34,7 +41,7 @@ pipeline {
                             -pl mall-portal,mall-admin \
                             -am \
                             -Dsonar.projectKey=mall-master \
-                            -Dsonar.branch.name=${BRANCH_NAME}
+                            -Dsonar.branch.name=${GIT_BRANCH_NAME}
                     '''
                 }
             }
@@ -136,7 +143,7 @@ pipeline {
         success {
             echo '========================================'
             echo '✅ 流水线执行成功！'
-            echo "   分支: ${env.BRANCH_NAME}"
+            echo "   分支: ${env.GIT_BRANCH_NAME}"
             echo "   构建号: ${env.BUILD_NUMBER}"
             echo '   请进行人工验证后合并到 develop'
             echo '========================================'
@@ -144,7 +151,7 @@ pipeline {
         failure {
             echo '========================================'
             echo '❌ 流水线执行失败！'
-            echo "   分支: ${env.BRANCH_NAME}"
+            echo "   分支: ${env.GIT_BRANCH_NAME}"
             echo '   请检查 Jenkins 日志排查问题'
             echo '========================================'
         }
