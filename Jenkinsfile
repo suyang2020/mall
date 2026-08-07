@@ -19,19 +19,24 @@ pipeline {
         }
 
         // =============================================
-        // Stage 2: Maven 编译 + 打包（含单元测试）
+        // Stage 2: Maven 编译 + 测试 + SonarQube 扫描
+        // （合并在一个 Maven 会话中，确保扫描时所有 class 文件已生成）
         // =============================================
-        stage('Maven Build & Test') {
+        stage('Build & SonarQube Scan') {
             steps {
-                sh '''
-                    mvn clean package \
-                        -DskipTests=false \
-                        -Dtest="!MallPortalApplicationTests,!PortalProductDaoTests" \
-                        -DfailIfNoTests=false \
-                        -Dsurefire.failIfNoSpecifiedTests=false \
-                        -pl mall-portal,mall-admin \
-                        -am
-                '''
+                withSonarQubeEnv('sonarqube-server') {
+                    sh '''
+                        mvn clean package sonar:sonar \
+                            -DskipTests=false \
+                            -Dtest="!MallPortalApplicationTests,!PortalProductDaoTests" \
+                            -DfailIfNoTests=false \
+                            -Dsurefire.failIfNoSpecifiedTests=false \
+                            -pl mall-portal,mall-admin \
+                            -am \
+                            -Dsonar.projectKey=mall-master \
+                            -Dsonar.branch.name=${BRANCH_NAME}
+                    '''
+                }
             }
             post {
                 always {
@@ -39,30 +44,13 @@ pipeline {
                         testResults: '**/target/surefire-reports/*.xml'
                 }
                 failure {
-                    error '编译或单元测试失败，流水线终止！'
+                    error '编译、测试或SonarQube扫描失败，流水线终止！'
                 }
             }
         }
 
         // =============================================
-        // Stage 3: SonarQube 代码扫描
-        // =============================================
-        stage('SonarQube Scan') {
-            steps {
-                withSonarQubeEnv('sonarqube-server') {
-                    sh '''
-                        mvn sonar:sonar \
-                            -Dsonar.projectKey=mall-master \
-                            -Dsonar.branch.name=${BRANCH_NAME} \
-                            -Dsonar.java.binaries=**/target/classes \
-                            -DskipTests=true
-                    '''
-                }
-            }
-        }
-
-        // =============================================
-        // Stage 4: SonarQube 质量门禁
+        // Stage 3: SonarQube 质量门禁
         // =============================================
         stage('Quality Gate') {
             steps {
@@ -77,7 +65,7 @@ pipeline {
         }
 
         // =============================================
-        // Stage 5: 构建 Docker 镜像
+        // Stage 4: 构建 Docker 镜像
         // =============================================
         stage('Build Docker Images') {
             parallel {
@@ -105,7 +93,7 @@ pipeline {
         }
 
         // =============================================
-        // Stage 6: 部署测试环境
+        // Stage 5: 部署测试环境
         // =============================================
         stage('Deploy to Test') {
             steps {
@@ -120,7 +108,7 @@ pipeline {
         }
 
         // =============================================
-        // Stage 7: 冒烟测试
+        // Stage 6: 冒烟测试
         // =============================================
         stage('Smoke Test') {
             steps {
