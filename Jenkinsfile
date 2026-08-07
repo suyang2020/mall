@@ -100,7 +100,7 @@ pipeline {
                 sh '''
                     cd ${WORKSPACE}
                     # 用新镜像重启服务（--no-build 避免重新构建）
-                    docker compose up -d --no-build --force-recreate mall-portal mall-admin
+                    docker-compose up -d --no-build --force-recreate mall-portal mall-admin
                     echo "测试环境部署完成，等待服务启动..."
                     sleep 20
                 '''
