@@ -152,7 +152,7 @@ pipeline {
 
         // =============================================
         // Stage 7: 接口自动化测试（Python + JMeter/Excel）
-        // 使用 python:3.13-slim 容器运行，自带 pip/git，无需折腾系统环境
+        // 使用 python:3.10-slim 容器运行，自带 pip/git，无需折腾系统环境
         // =============================================
         stage('API Automation Test') {
             agent {
@@ -189,6 +189,9 @@ pipeline {
 
                     // 执行测试（失败不中断流水线，标记为 UNSTABLE）
                     try {
+                        // slim 镜像不含 git，先装上
+                        sh 'apt-get update -qq && apt-get install -y -qq --no-install-recommends git'
+
                         // 拉取测试仓库（使用 Jenkins 凭据）
                         withCredentials([usernamePassword(
                             credentialsId: 'github-credential',
