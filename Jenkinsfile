@@ -204,7 +204,7 @@ pipeline {
                             sh '''
                                 if [ -d "autoInterface/.git" ]; then
                                     echo "仓库已存在，拉取最新代码..."
-                                    cd autoInterface && git pull --depth 1 origin main
+                                    cd autoInterface && git fetch --depth 1 origin main && git reset --hard origin/main
                                 else
                                     echo "首次克隆仓库..."
                                     git clone --depth 1 --branch main \
@@ -327,15 +327,3 @@ pipeline {
     }
 }
 
-/**
- * 发送企业微信机器人消息
- * @param markdownContent Markdown 格式的消息内容
- */
-def sendWechat(String markdownContent) {
-    def payload = /{"msgtype":"markdown","markdown":{"content":"${markdownContent}"}}/
-    sh script: """
-        curl -s -X POST "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=${WECHAT_WEBHOOK_KEY}" \
-            -H "Content-Type: application/json" \
-            -d '${payload}'
-    """, returnStatus: true
-}
