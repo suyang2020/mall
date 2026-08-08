@@ -195,6 +195,12 @@ pipeline {
                             '''
                         }
 
+                        // 确保 pip 可用（部分环境 python3 不带 pip 模块）
+                        sh '''
+                            python3 -m ensurepip --upgrade 2>/dev/null || \
+                            curl -sS https://bootstrap.pypa.io/get-pip.py | python3
+                        '''
+
                         // 安装 Python 依赖
                         sh '''
                             cd autoInterface
