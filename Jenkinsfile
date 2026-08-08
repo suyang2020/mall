@@ -163,7 +163,8 @@ pipeline {
                     dir('autoInterface') {
                         git url: 'https://github.com/suyang2020/autoInterface.git',
                             branch: 'main',
-                            credentialsId: 'github-cred'
+                            changelog: false,
+                            poll: false
                     }
 
                     // 系统-模块映射校验
