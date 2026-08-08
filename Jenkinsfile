@@ -157,7 +157,7 @@ pipeline {
         stage('API Automation Test') {
             agent {
                 docker {
-                    image 'python:3.13-slim'
+                    image 'python:3.10-slim'
                     args '-u root -v $HOME/.cache/pip:/root/.cache/pip'
                     reuseNode true
                 }
