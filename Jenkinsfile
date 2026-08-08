@@ -188,31 +188,34 @@ pipeline {
                             passwordVariable: 'GIT_PASS'
                         )]) {
                             sh '''
-                                rm -rf autoInterface
-                                git clone --depth 1 --branch main \
-                                    "https://${GIT_USER}:${GIT_PASS}@github.com/suyang2020/autoInterface.git" \
-                                    autoInterface
+                                if [ -d "autoInterface/.git" ]; then
+                                    echo "仓库已存在，拉取最新代码..."
+                                    cd autoInterface && git pull --depth 1 origin main
+                                else
+                                    echo "首次克隆仓库..."
+                                    git clone --depth 1 --branch main \
+                                        "https://${GIT_USER}:${GIT_PASS}@github.com/suyang2020/autoInterface.git" \
+                                        autoInterface
+                                fi
                             '''
                         }
 
-                        // 确保 pip 可用（部分环境 python3 不带 pip 模块）
-                        sh '''
-                            python3 -m ensurepip --upgrade 2>/dev/null || \
-                            curl -sS https://bootstrap.pypa.io/get-pip.py | python3
-                        '''
-
-                        // 安装 Python 依赖
+                        // 创建虚拟环境并安装依赖（避免 PEP 668 限制）
                         sh '''
                             cd autoInterface
+                            if [ ! -d ".venv" ]; then
+                                python3 -m venv .venv
+                            fi
                             if [ -f "requirements.txt" ]; then
-                                python3 -m pip install -r requirements.txt \
+                                .venv/bin/pip install -r requirements.txt \
                                     -i https://pypi.tuna.tsinghua.edu.cn/simple
                             else
-                                python3 -m pip install -i https://pypi.tuna.tsinghua.edu.cn/simple \
+                                .venv/bin/pip install -i https://pypi.tuna.tsinghua.edu.cn/simple \
                                     openpyxl requests lxml
                             fi
                         '''
 
+                        // 执行接口自动化测试
                         sh """
                             cd autoInterface
 
@@ -221,7 +224,7 @@ pipeline {
                                 chmod +x "\$JMETER_BIN"
                             fi
 
-                            python run/scheduler.py "${sysArg}" "${modArg}" "${params.API_ENV}"
+                            .venv/bin/python run/scheduler.py "${sysArg}" "${modArg}" "${params.API_ENV}"
                         """
                     } catch (Exception e) {
                         echo "接口测试执行失败: ${e.getMessage()}"
