@@ -189,9 +189,8 @@ pipeline {
                         )]) {
                             sh '''
                                 rm -rf autoInterface
-                                GIT_USER_ENC=$(printf '%s' "${GIT_USER}" | sed 's/@/%40/g')
                                 git clone --depth 1 --branch main \
-                                    "https://${GIT_USER_ENC}:${GIT_PASS}@github.com/suyang2020/autoInterface.git" \
+                                    "https://${GIT_USER}:${GIT_PASS}@github.com/suyang2020/autoInterface.git" \
                                     autoInterface
                             '''
                         }
