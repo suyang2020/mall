@@ -290,7 +290,6 @@ pipeline {
                     "> **提交**: ${env.GIT_COMMIT ? env.GIT_COMMIT.take(8) : 'N/A'}\n" +
                     "> [查看详情](${env.BUILD_URL})"
 
-                sendWechat(msg)
             }
         }
         failure {
@@ -302,23 +301,8 @@ pipeline {
                     "> **提交**: ${env.GIT_COMMIT ? env.GIT_COMMIT.take(8) : 'N/A'}\n" +
                     "> [查看详情](${env.BUILD_URL})"
 
-                sendWechat(msg)
             }
-
-            // 邮件通知（需 Jenkins 已配置 SMTP + Email Extension Plugin）
-            emailext(
-                subject: "❌ [Jenkins] mall-master 构建失败 - ${env.GIT_BRANCH_NAME} #${env.BUILD_NUMBER}",
-                body: """
-                    <h3>构建失败</h3>
-                    <table>
-                        <tr><td><b>项目</b></td><td>mall-master</td></tr>
-                        <tr><td><b>分支</b></td><td>${env.GIT_BRANCH_NAME}</td></tr>
-                        <tr><td><b>构建号</b></td><td>#${env.BUILD_NUMBER}</td></tr>
-                    </table>
-                    <p>请查看 <a href="${env.BUILD_URL}">构建日志</a> 排查问题。</p>
-                """,
-                to: '${DEFAULT_RECIPIENTS}'
-            )
+         
         }
         unstable {
             // 接口测试失败时 Python 脚本已发送通知，此处不再重复
