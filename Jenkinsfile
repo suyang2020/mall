@@ -17,6 +17,9 @@ pipeline {
 
     environment {
         SONAR_HOST_URL = 'http://sonarqube:9000'
+        // 通知凭据（Jenkins → Manage Credentials 中配置）
+        WECHAT_WEBHOOK_KEY = credentials('wechat-webhook-key')
+        EMAIL_PASSWORD     = credentials('email-password')
     }
 
     stages {
@@ -223,6 +226,25 @@ pipeline {
                             fi
                         '''
 
+                        // 生成 mall 代码变更 diff，供 Python 脚本做精准测试
+                        sh '''
+                            cd ${WORKSPACE}
+
+                            if git rev-parse origin/develop >/dev/null 2>&1; then
+                                echo "生成相对于 origin/develop 的 git diff..."
+                                git diff --name-status origin/develop...HEAD -- . > autoInterface/gitdiff.txt
+                            elif git rev-parse HEAD~1 >/dev/null 2>&1; then
+                                echo "origin/develop 不可用，使用 HEAD~1..."
+                                git diff --name-status HEAD~1 -- . > autoInterface/gitdiff.txt
+                            else
+                                echo "(无历史记录，生成空 diff)"
+                                touch autoInterface/gitdiff.txt
+                            fi
+
+                            echo "===== 变更文件 (前30行) ====="
+                            head -30 autoInterface/gitdiff.txt
+                        '''
+
                         // 执行测试
                         sh """
                             cd autoInterface
@@ -232,7 +254,7 @@ pipeline {
                                 chmod +x "\$JMETER_BIN"
                             fi
 
-                            python run/scheduler.py "${sysArg}" "${modArg}" "${params.API_ENV}"
+                            python run/scheduler.py "${sysArg}" "${modArg}" "${params.API_ENV}" gitdiff.txt
                         """
                     } catch (Exception e) {
                         echo "接口测试执行失败: ${e.getMessage()}"
@@ -260,19 +282,60 @@ pipeline {
 
     post {
         success {
-            echo '========================================'
-            echo '✅ 流水线执行成功！'
-            echo "   分支: ${env.GIT_BRANCH_NAME}"
-            echo "   构建号: ${env.BUILD_NUMBER}"
-            echo '   请进行人工验证后合并到 develop'
-            echo '========================================'
+            script {
+                def msg = "## ✅ 构建成功\n" +
+                    "> **项目**: mall-master\n" +
+                    "> **分支**: ${env.GIT_BRANCH_NAME}\n" +
+                    "> **构建号**: #${env.BUILD_NUMBER}\n" +
+                    "> **提交**: ${env.GIT_COMMIT ? env.GIT_COMMIT.take(8) : 'N/A'}\n" +
+                    "> [查看详情](${env.BUILD_URL})"
+
+                sendWechat(msg)
+            }
         }
         failure {
-            echo '========================================'
-            echo '❌ 流水线执行失败！'
-            echo "   分支: ${env.GIT_BRANCH_NAME}"
-            echo '   请检查 Jenkins 日志排查问题'
-            echo '========================================'
+            script {
+                def msg = "## ❌ 构建失败\n" +
+                    "> **项目**: mall-master\n" +
+                    "> **分支**: ${env.GIT_BRANCH_NAME}\n" +
+                    "> **构建号**: #${env.BUILD_NUMBER}\n" +
+                    "> **提交**: ${env.GIT_COMMIT ? env.GIT_COMMIT.take(8) : 'N/A'}\n" +
+                    "> [查看详情](${env.BUILD_URL})"
+
+                sendWechat(msg)
+            }
+
+            // 邮件通知（需 Jenkins 已配置 SMTP + Email Extension Plugin）
+            emailext(
+                subject: "❌ [Jenkins] mall-master 构建失败 - ${env.GIT_BRANCH_NAME} #${env.BUILD_NUMBER}",
+                body: """
+                    <h3>构建失败</h3>
+                    <table>
+                        <tr><td><b>项目</b></td><td>mall-master</td></tr>
+                        <tr><td><b>分支</b></td><td>${env.GIT_BRANCH_NAME}</td></tr>
+                        <tr><td><b>构建号</b></td><td>#${env.BUILD_NUMBER}</td></tr>
+                    </table>
+                    <p>请查看 <a href="${env.BUILD_URL}">构建日志</a> 排查问题。</p>
+                """,
+                to: '${DEFAULT_RECIPIENTS}'
+            )
+        }
+        unstable {
+            // 接口测试失败时 Python 脚本已发送通知，此处不再重复
+            echo "⚠️ 构建不稳定（UNSTABLE），请查看 API Test Report 了解详情"
         }
     }
+}
+
+/**
+ * 发送企业微信机器人消息
+ * @param markdownContent Markdown 格式的消息内容
+ */
+def sendWechat(String markdownContent) {
+    def payload = /{"msgtype":"markdown","markdown":{"content":"${markdownContent}"}}/
+    sh script: """
+        curl -s -X POST "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=${WECHAT_WEBHOOK_KEY}" \
+            -H "Content-Type: application/json" \
+            -d '${payload}'
+    """, returnStatus: true
 }
