@@ -159,14 +159,6 @@ pipeline {
             }
             steps {
                 script {
-                    // 拉取独立测试仓库
-                    dir('autoInterface') {
-                        git url: 'https://github.com/suyang2020/autoInterface.git',
-                            branch: 'main',
-                            changelog: false,
-                            poll: false
-                    }
-
                     // 系统-模块映射校验
                     def validModules = [
                         '全部':     ['所有'],
@@ -187,18 +179,34 @@ pipeline {
 
                     echo "接口测试参数: 系统=${sysArg ?: '全部'}  模块=${modArg ?: '全部'}  环境=${params.API_ENV}"
 
-                    // 安装 Python 依赖
-                    sh '''
-                        cd autoInterface
-                        if [ -f "requirements.txt" ]; then
-                            pip3 install -r requirements.txt -i https://pypi.tuna.tsinghua.edu.cn/simple
-                        else
-                            pip3 install -i https://pypi.tuna.tsinghua.edu.cn/simple openpyxl requests lxml
-                        fi
-                    '''
-
                     // 执行测试（失败不中断流水线，标记为 UNSTABLE）
                     try {
+                        // 使用 Jenkins 凭据克隆私有仓库
+                        withCredentials([usernamePassword(
+                            credentialsId: 'github-credential',
+                            usernameVariable: 'GIT_USER',
+                            passwordVariable: 'GIT_PASS'
+                        )]) {
+                            sh '''
+                                rm -rf autoInterface
+                                git clone --depth 1 --branch main \
+                                    "https://${GIT_USER}:${GIT_PASS}@github.com/suyang2020/autoInterface.git" \
+                                    autoInterface
+                            '''
+                        }
+
+                        // 安装 Python 依赖
+                        sh '''
+                            cd autoInterface
+                            if [ -f "requirements.txt" ]; then
+                                pip3 install -r requirements.txt \
+                                    -i https://pypi.tuna.tsinghua.edu.cn/simple
+                            else
+                                pip3 install -i https://pypi.tuna.tsinghua.edu.cn/simple \
+                                    openpyxl requests lxml
+                            fi
+                        '''
+
                         sh """
                             cd autoInterface
 
