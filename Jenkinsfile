@@ -28,11 +28,10 @@ pipeline {
             steps {
                 checkout scm
                 script {
-                    // 普通 Pipeline 没有 BRANCH_NAME，从 git 获取
-                    env.GIT_BRANCH_NAME = sh(
-                        script: 'git rev-parse --abbrev-ref HEAD',
-                        returnStdout: true
-                    ).trim()
+                    // 普通 Pipeline 没有 BRANCH_NAME，从 Git 插件变量获取
+                    // GIT_BRANCH 格式为 origin/feature/login，去掉 origin/ 前缀
+                    env.GIT_BRANCH_NAME = env.GIT_BRANCH ?
+                        env.GIT_BRANCH.replaceFirst('^origin/', '') : 'unknown'
                 }
                 echo "当前分支: ${env.GIT_BRANCH_NAME}"
                 echo "提交ID: ${GIT_COMMIT.take(8)}"
@@ -54,8 +53,7 @@ pipeline {
                             -Dsurefire.failIfNoSpecifiedTests=false \
                             -pl mall-portal,mall-admin \
                             -am \
-                            -Dsonar.projectKey=mall-master \
-                            -Dsonar.branch.name=${GIT_BRANCH_NAME}
+                            -Dsonar.projectKey=mall-master
                     '''
                 }
             }
