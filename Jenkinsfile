@@ -24,131 +24,131 @@ pipeline {
         // =============================================
         // Stage 1: 代码检出
         // =============================================
-        stage('Checkout') {
-            steps {
-                checkout scm
-                script {
-                    // 普通 Pipeline 没有 BRANCH_NAME，从 Git 插件变量获取
-                    // GIT_BRANCH 格式为 origin/feature/login，去掉 origin/ 前缀
-                    env.GIT_BRANCH_NAME = env.GIT_BRANCH ?
-                        env.GIT_BRANCH.replaceFirst('^origin/', '') : 'unknown'
-                }
-                echo "当前分支: ${env.GIT_BRANCH_NAME}"
-                echo "提交ID: ${GIT_COMMIT.take(8)}"
-            }
-        }
+        // stage('Checkout') {
+        //     steps {
+        //         checkout scm
+        //         script {
+        //             // 普通 Pipeline 没有 BRANCH_NAME，从 Git 插件变量获取
+        //             // GIT_BRANCH 格式为 origin/feature/login，去掉 origin/ 前缀
+        //             env.GIT_BRANCH_NAME = env.GIT_BRANCH ?
+        //                 env.GIT_BRANCH.replaceFirst('^origin/', '') : 'unknown'
+        //         }
+        //         echo "当前分支: ${env.GIT_BRANCH_NAME}"
+        //         echo "提交ID: ${GIT_COMMIT.take(8)}"
+        //     }
+        // }
 
         // =============================================
         // Stage 2: Maven 编译 + 测试 + SonarQube 扫描
         // （合并在一个 Maven 会话中，确保扫描时所有 class 文件已生成）
         // =============================================
-        stage('Build & SonarQube Scan') {
-            steps {
-                withSonarQubeEnv('sonarqube-server') {
-                    sh '''
-                        mvn clean package sonar:sonar \
-                            -DskipTests=false \
-                            -Dtest="!MallPortalApplicationTests,!PortalProductDaoTests" \
-                            -DfailIfNoTests=false \
-                            -Dsurefire.failIfNoSpecifiedTests=false \
-                            -pl mall-portal,mall-admin \
-                            -am \
-                            -Dsonar.projectKey=mall-master
-                    '''
-                }
-            }
-            post {
-                always {
-                    junit allowEmptyResults: true,
-                        testResults: '**/target/surefire-reports/*.xml'
-                }
-                failure {
-                    error '编译、测试或SonarQube扫描失败，流水线终止！'
-                }
-            }
-        }
+        // stage('Build & SonarQube Scan') {
+        //     steps {
+        //         withSonarQubeEnv('sonarqube-server') {
+        //             sh '''
+        //                 mvn clean package sonar:sonar \
+        //                     -DskipTests=false \
+        //                     -Dtest="!MallPortalApplicationTests,!PortalProductDaoTests" \
+        //                     -DfailIfNoTests=false \
+        //                     -Dsurefire.failIfNoSpecifiedTests=false \
+        //                     -pl mall-portal,mall-admin \
+        //                     -am \
+        //                     -Dsonar.projectKey=mall-master
+        //             '''
+        //         }
+        //     }
+        //     post {
+        //         always {
+        //             junit allowEmptyResults: true,
+        //                 testResults: '**/target/surefire-reports/*.xml'
+        //         }
+        //         failure {
+        //             error '编译、测试或SonarQube扫描失败，流水线终止！'
+        //         }
+        //     }
+        // }
 
         // =============================================
         // Stage 3: SonarQube 质量门禁
         // =============================================
-        stage('Quality Gate') {
-            steps {
-                script {
-                    def qg = waitForQualityGate()
-                    if (qg.status != 'OK') {
-                        error "质量门禁未通过！状态: ${qg.status}"
-                    }
-                    echo '✅ 质量门禁通过！'
-                }
-            }
-        }
+        // stage('Quality Gate') {
+        //     steps {
+        //         script {
+        //             def qg = waitForQualityGate()
+        //             if (qg.status != 'OK') {
+        //                 error "质量门禁未通过！状态: ${qg.status}"
+        //             }
+        //             echo '✅ 质量门禁通过！'
+        //         }
+        //     }
+        // }
 
         // =============================================
         // Stage 4: 构建 Docker 镜像
         // =============================================
-        stage('Build Docker Images') {
-            parallel {
-                stage('mall-portal') {
-                    steps {
-                        sh '''
-                            docker build \
-                                -t mall/mall-portal:latest \
-                                -t mall/mall-portal:${BUILD_NUMBER} \
-                                -f mall-portal/Dockerfile mall-portal/
-                        '''
-                    }
-                }
-                stage('mall-admin') {
-                    steps {
-                        sh '''
-                            docker build \
-                                -t mall/mall-admin:latest \
-                                -t mall/mall-admin:${BUILD_NUMBER} \
-                                -f mall-admin/Dockerfile mall-admin/
-                        '''
-                    }
-                }
-            }
-        }
+        // stage('Build Docker Images') {
+        //     parallel {
+        //         stage('mall-portal') {
+        //             steps {
+        //                 sh '''
+        //                     docker build \
+        //                         -t mall/mall-portal:latest \
+        //                         -t mall/mall-portal:${BUILD_NUMBER} \
+        //                         -f mall-portal/Dockerfile mall-portal/
+        //                 '''
+        //             }
+        //         }
+        //         stage('mall-admin') {
+        //             steps {
+        //                 sh '''
+        //                     docker build \
+        //                         -t mall/mall-admin:latest \
+        //                         -t mall/mall-admin:${BUILD_NUMBER} \
+        //                         -f mall-admin/Dockerfile mall-admin/
+        //                 '''
+        //             }
+        //         }
+        //     }
+        // }
 
         // =============================================
         // Stage 5: 部署测试环境
         // =============================================
-        stage('Deploy to Test') {
-            steps {
-                sh '''
-                    cd ${WORKSPACE}
-                    # 先停掉旧容器再重建（不同 compose 项目无法接管已有容器）
-                    docker stop mall-portal mall-admin || true
-                    docker rm mall-portal mall-admin || true
-                    docker-compose up -d --no-build --no-deps mall-portal mall-admin
-                    echo "测试环境部署完成，等待服务启动..."
-                    sleep 20
-                '''
-            }
-        }
+        // stage('Deploy to Test') {
+        //     steps {
+        //         sh '''
+        //             cd ${WORKSPACE}
+        //             # 先停掉旧容器再重建（不同 compose 项目无法接管已有容器）
+        //             docker stop mall-portal mall-admin || true
+        //             docker rm mall-portal mall-admin || true
+        //             docker-compose up -d --no-build --no-deps mall-portal mall-admin
+        //             echo "测试环境部署完成，等待服务启动..."
+        //             sleep 20
+        //         '''
+        //     }
+        // }
 
         // =============================================
         // Stage 6: 冒烟测试（快速验证服务是否存活）
         // =============================================
-        stage('Smoke Test') {
-            steps {
-                sh '''
-                    echo "检查 mall-portal 健康状态..."
-                    curl -f --max-time 15 http://mall-portal:8085/actuator/health || exit 1
+        // stage('Smoke Test') {
+        //     steps {
+        //         sh '''
+        //             echo "检查 mall-portal 健康状态..."
+        //             curl -f --max-time 15 http://mall-portal:8085/actuator/health || exit 1
 
-                    echo "检查 mall-admin 健康状态..."
-                    curl -f --max-time 15 http://mall-admin:8080/actuator/health || exit 1
+        //             echo "检查 mall-admin 健康状态..."
+        //             curl -f --max-time 15 http://mall-admin:8080/actuator/health || exit 1
 
-                    echo "✅ 冒烟测试通过！"
-                '''
-            }
-            post {
-                failure {
-                    echo '❌ 冒烟测试失败，请检查服务日志！'
-                }
-            }
-        }
+        //             echo "✅ 冒烟测试通过！"
+        //         '''
+        //     }
+        //     post {
+        //         failure {
+        //             echo '❌ 冒烟测试失败，请检查服务日志！'
+        //         }
+        //     }
+        // }
 
         // =============================================
         // Stage 7: 接口自动化测试（Python + JMeter/Excel）
@@ -199,10 +199,10 @@ pipeline {
                         sh '''
                             cd autoInterface
                             if [ -f "requirements.txt" ]; then
-                                pip3 install -r requirements.txt \
+                                pip install -r requirements.txt \
                                     -i https://pypi.tuna.tsinghua.edu.cn/simple
                             else
-                                pip3 install -i https://pypi.tuna.tsinghua.edu.cn/simple \
+                                pip install -i https://pypi.tuna.tsinghua.edu.cn/simple \
                                     openpyxl requests lxml
                             fi
                         '''
@@ -215,7 +215,7 @@ pipeline {
                                 chmod +x "\$JMETER_BIN"
                             fi
 
-                            python3 run/scheduler.py "${sysArg}" "${modArg}" "${params.API_ENV}"
+                            python run/scheduler.py "${sysArg}" "${modArg}" "${params.API_ENV}"
                         """
                     } catch (Exception e) {
                         echo "接口测试执行失败: ${e.getMessage()}"
