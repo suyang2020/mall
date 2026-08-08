@@ -152,8 +152,16 @@ pipeline {
 
         // =============================================
         // Stage 7: 接口自动化测试（Python + JMeter/Excel）
+        // 使用 python:3.13-slim 容器运行，自带 pip/git，无需折腾系统环境
         // =============================================
         stage('API Automation Test') {
+            agent {
+                docker {
+                    image 'python:3.13-slim'
+                    args '-u root -v $HOME/.cache/pip:/root/.cache/pip'
+                    reuseNode true
+                }
+            }
             when {
                 expression { return !params.SKIP_API_TEST }
             }
@@ -181,7 +189,7 @@ pipeline {
 
                     // 执行测试（失败不中断流水线，标记为 UNSTABLE）
                     try {
-                        // 使用 Jenkins 凭据克隆私有仓库
+                        // 拉取测试仓库（使用 Jenkins 凭据）
                         withCredentials([usernamePassword(
                             credentialsId: 'github-credential',
                             usernameVariable: 'GIT_USER',
@@ -200,22 +208,19 @@ pipeline {
                             '''
                         }
 
-                        // 创建虚拟环境并安装依赖（避免 PEP 668 限制）
+                        // 安装依赖（python:3.13-slim 容器自带 pip）
                         sh '''
                             cd autoInterface
-                            if [ ! -d ".venv" ]; then
-                                python3 -m venv .venv
-                            fi
                             if [ -f "requirements.txt" ]; then
-                                .venv/bin/pip install -r requirements.txt \
+                                pip install -r requirements.txt \
                                     -i https://pypi.tuna.tsinghua.edu.cn/simple
                             else
-                                .venv/bin/pip install -i https://pypi.tuna.tsinghua.edu.cn/simple \
+                                pip install -i https://pypi.tuna.tsinghua.edu.cn/simple \
                                     openpyxl requests lxml
                             fi
                         '''
 
-                        // 执行接口自动化测试
+                        // 执行测试
                         sh """
                             cd autoInterface
 
@@ -224,7 +229,7 @@ pipeline {
                                 chmod +x "\$JMETER_BIN"
                             fi
 
-                            .venv/bin/python run/scheduler.py "${sysArg}" "${modArg}" "${params.API_ENV}"
+                            python run/scheduler.py "${sysArg}" "${modArg}" "${params.API_ENV}"
                         """
                     } catch (Exception e) {
                         echo "接口测试执行失败: ${e.getMessage()}"
@@ -235,7 +240,7 @@ pipeline {
             post {
                 always {
                     // HTML 测试报告
-                    publishHTML([allowMissing: true,
+                    publishHTML([allowMissing: false,
                         alwaysLinkToLastBuild: true,
                         keepAll: true,
                         reportDir: 'autoInterface/report',
