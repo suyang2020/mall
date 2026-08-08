@@ -34,7 +34,7 @@ public class CmsSubjectController {
         return CommonResult.success(subjectList);
     }
 
-    @Operation(summary = "根据专题名称分页获取商品专题")
+    @Operation(summary = "根据专题名称分页查询商品专题")
     @RequestMapping(value = "/list", method = RequestMethod.GET)
     @ResponseBody
     public CommonResult<CommonPage<CmsSubject>> getList(@RequestParam(value = "keyword", required = false) String keyword,
